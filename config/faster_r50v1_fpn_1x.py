@@ -12,7 +12,7 @@ def get_config(is_train):
     class General:
         log_frequency = 10
         name = __name__.rsplit("/")[-1].rsplit(".")[-1]
-        batch_image = 2 if is_train else 1
+        batch_image = 1 if is_train else 1
         fp16 = False
         loader_worker = 8
 
@@ -20,7 +20,7 @@ def get_config(is_train):
     class KvstoreParam:
         kvstore     = "nccl"
         batch_image = General.batch_image
-        gpus        = [0, 1, 2, 3, 4, 5, 6, 7]
+        gpus        = [0]
         fp16        = General.fp16
 
 
@@ -80,7 +80,7 @@ def get_config(is_train):
             bg_thr_lo = 0.0
 
         class bbox_target:
-            num_reg_class = 81
+            num_reg_class = 1 + 3
             class_agnostic = False
             weight = (1.0, 1.0, 1.0, 1.0)
             mean = (0.0, 0.0, 0.0, 0.0)
@@ -90,7 +90,7 @@ def get_config(is_train):
     class BboxParam:
         fp16 = General.fp16
         normalizer = NormalizeParam.normalizer
-        num_class   = 1 + 80
+        num_class   = 1 + 3
         image_roi   = 512
         batch_image = General.batch_image
 
@@ -111,9 +111,9 @@ def get_config(is_train):
 
     class DatasetParam:
         if is_train:
-            image_set = ("coco_train2017", )
+            image_set = ("mahd_train", )
         else:
-            image_set = ("coco_val2017", )
+            image_set = ("mahd_test", )
 
     backbone = Backbone(BackboneParam)
     neck = Neck(NeckParam)
@@ -190,6 +190,7 @@ def get_config(is_train):
 
         class coco:
             annotation = "data/coco/annotations/instances_minival2014.json"
+            annotation = None
 
 
     # data processing
@@ -269,27 +270,34 @@ def get_config(is_train):
         label_name = []
 
     import core.detection_metric as metric
+    from mxboard import SummaryWriter
+
+    sw = SummaryWriter(logdir="./tflogs", flush_secs=5)  
 
     rpn_acc_metric = metric.AccWithIgnore(
         "RpnAcc",
         ["rpn_cls_loss_output", "rpn_cls_label_blockgrad_output"],
-        []
+        label_names=[],
+        summary=sw
     )
     rpn_l1_metric = metric.L1(
         "RpnL1",
         ["rpn_reg_loss_output", "rpn_cls_label_blockgrad_output"],
-        []
+        label_names=[],
+        summary=sw
     )
     # for bbox, the label is generated in network so it is an output
     box_acc_metric = metric.AccWithIgnore(
         "RcnnAcc",
         ["bbox_cls_loss_output", "bbox_label_blockgrad_output"],
-        []
+        label_names=[],
+        summary=sw
     )
     box_l1_metric = metric.L1(
         "RcnnL1",
         ["bbox_reg_loss_output", "bbox_label_blockgrad_output"],
-        []
+        label_names=[],
+        summary=sw
     )
 
     metric_list = [rpn_acc_metric, rpn_l1_metric, box_acc_metric, box_l1_metric]
